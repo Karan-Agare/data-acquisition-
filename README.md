@@ -1,5 +1,7 @@
 # DATA ACQUISITION #
 
+This is the doc of the E-21 formula style Electrical vehicle 
+
 
 ## IMD MONITORING ##
 IMD BENDOR ERRORS BEING MONITORED
