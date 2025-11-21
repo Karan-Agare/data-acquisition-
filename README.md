@@ -12,7 +12,7 @@ In our vehicle system, the Orion BMS2 (Battery Management System) is responsible
 Real time debugging rather than manually plugging the orion bms 2 Can adaptor and checking for the error that may have occurred. 
 Below are the following errors that Orion bms lets us monitor. Along with 5 custom monitoring parameters. 
 
-Bit #1 (0x0001): P0A07 (Discharge Limit Enforcement Fault)
+Bit #1 (0x0001): P0A07 (Discharge Limit Enforcement Fault)/n
 Bit #2 (0x0002): P0A08 (Charger Safety Relay Fault)
 Bit #3 (0x0004): P0A09 (Internal Hardware Fault)
 Bit #4 (0x0008): P0A0A (Internal Heatsink Thermistor Fault)
