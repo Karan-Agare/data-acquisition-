@@ -1,7 +1,7 @@
-# data-acquisition-
+# DATA ACQUISITION #
 
 
-
+## IMD MONITORING ##
 IMD BENDOR ERRORS BEING MONITORED
 0 Hz
 High → Short-circuit to Ub + (Kl. 15)
