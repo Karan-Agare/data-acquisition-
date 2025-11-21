@@ -6,7 +6,7 @@ We are implementing DAQ to monitor the motor temp, battery temp, motorcontroller
 ## ENERGY METER ## 
 
 
-## BMS DTC ERRORS MONITORING 
+# BMS DTC ERRORS MONITORING #
 In our vehicle system, the Orion BMS2 (Battery Management System) is responsible for monitoring the health, safety, and performance of the high-voltage accumulator. Using the MCP2515 CAN module, we continuously read error frames and status flags sent by the BMS on the CAN network.
 
 Real time debugging rather than manually plugging the orion bms 2 Can adaptor and checking for the error that may have occurred. 
