@@ -9,7 +9,7 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);   // change to 0x3F if needed
 #define PULSES_PER_REV 4
 
 // ---------- Wheel ----------
-#define WHEEL_DIAMETER_M 0.60
+#define WHEEL_DIAMETER_M 4.4
 
 // ---------- Timing ----------
 #define SAMPLE_INTERVAL_MS 150
