@@ -60,6 +60,14 @@ Bit #15 (0x4000): P0A05 (Input Power Supply Fault)
 
 Bit #16 (0x8000): P0A06 (Charge Limit Enforcement Fault
 
+# SCHEMATIC #
+<img width="812" height="588" alt="Screenshot 2026-01-12 181403" src="https://github.com/user-attachments/assets/63b3ddab-5407-436e-8860-7fbd3bf8fae0" />
+
+# PHYSICAL BOARD #
+<img width="747" height="1024" alt="PCB" src="https://github.com/user-attachments/assets/f78e93d9-fe4f-4587-b74d-2866efb483c8" />
+
+
+
 
 ## IMD MONITORING ##
 IMD BENDOR ERRORS BEING MONITORED
@@ -94,3 +102,11 @@ Fault detected on earth connection (Kl. 31)
 PWM 47.5–52.5%
 
 DATASHEET OF BENDER PCB https://www.bender.de/fileadmin/content/Products/d/e/IR155-32xx-V004_D00115_D_XXEN.pdf
+
+## PROTEUS SIMULATION ## 
+<img width="733" height="460" alt="Screenshot 2026-01-20 081449" src="https://github.com/user-attachments/assets/98625e07-0163-47bd-b13c-29aaab550c79" />
+
+## ACTIVE COOLING ## 
+<img width="1118" height="632" alt="Screenshot 2026-01-20 083156" src="https://github.com/user-attachments/assets/ed057a3d-57d0-487a-abef-4082f5f65e63" />
+
+
