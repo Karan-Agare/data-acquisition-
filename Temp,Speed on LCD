@@ -1,0 +1,291 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+// ---------- LCD ----------
+// Uses the first two rows of a 16x2 or 16x4 LCD.
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+// ---------- IR SENSOR ----------
+#define IR_SENSOR_PIN 2
+#define PULSES_PER_REV 4
+
+// ---------- WHEEL ----------
+const float WHEEL_DIAMETER_M = 0.44;
+const float WHEEL_CIRCUMFERENCE_M =
+    3.14159265 * WHEEL_DIAMETER_M;
+
+// ---------- THERMISTORS ----------
+const uint8_t TEMP_PINS[4] = {A0, A1, A2, A3};
+
+const float R_FIXED = 10000.0;
+const float R0 = 10000.0;
+const float BETA = 3950.0;
+const float T0 = 298.15;
+
+// true:
+// VCC -> Thermistor -> Analog pin -> 10k resistor -> GND
+//
+// false:
+// VCC -> 10k resistor -> Analog pin -> Thermistor -> GND
+const bool THERMISTOR_TO_VCC = true;
+
+// ---------- UPDATE INTERVALS ----------
+const unsigned long SPEED_INTERVAL_MS = 150;
+const unsigned long TEMP_INTERVAL_MS = 1000;
+const unsigned long DISPLAY_INTERVAL_MS = 300;
+
+// ---------- SCREEN DURATIONS ----------
+const unsigned long SPEED_PAGE_MS = 10000;
+const unsigned long TEMP_PAGE_MS = 6000;
+
+// ---------- SPEED FILTER ----------
+const float FAST_ALPHA = 0.6;
+const float SLOW_ALPHA = 0.15;
+
+// ---------- VARIABLES ----------
+volatile unsigned long pulseCount = 0;
+
+unsigned long lastSpeedTime = 0;
+unsigned long lastTempTime = 0;
+unsigned long lastDisplayTime = 0;
+unsigned long lastPageTime = 0;
+
+float rpmFiltered = 0.0;
+float speed_kmph = 0.0;
+float totalDistance_m = 0.0;
+
+float temperatures[4] = {NAN, NAN, NAN, NAN};
+
+// 0 = Speed and distance
+// 1 = All four temperatures
+uint8_t displayPage = 0;
+
+// ---------- INTERRUPT ----------
+void pulseISR() {
+  pulseCount++;
+}
+
+// ---------- READ TEMPERATURE ----------
+// Assumes a 10-bit ADC, such as Arduino Uno / classic Nano.
+float readTempC(uint8_t pin) {
+  // Discard first reading after switching channels.
+  analogRead(pin);
+
+  unsigned long sum = 0;
+
+  for (uint8_t i = 0; i < 10; i++) {
+    sum += analogRead(pin);
+  }
+
+  float adc = sum / 10.0;
+
+  if (adc <= 1.0 || adc >= 1022.0) {
+    return NAN;
+  }
+
+  float resistance;
+
+  if (THERMISTOR_TO_VCC) {
+    resistance = R_FIXED * (1023.0 / adc - 1.0);
+  } else {
+    resistance = R_FIXED * adc / (1023.0 - adc);
+  }
+
+  float tempK = 1.0 /
+      ((1.0 / T0) + log(resistance / R0) / BETA);
+
+  return tempK - 273.15;
+}
+
+// ---------- UPDATE ALL TEMPERATURES ----------
+void updateTemperatures() {
+  for (uint8_t i = 0; i < 4; i++) {
+    temperatures[i] = readTempC(TEMP_PINS[i]);
+  }
+}
+
+// ---------- PRINT A FULL LCD ROW ----------
+void printRow(uint8_t row, const char* text) {
+  lcd.setCursor(0, row);
+
+  uint8_t col = 0;
+
+  while (col < 16 && *text != '\0') {
+    lcd.print(*text++);
+    col++;
+  }
+
+  // Remove leftover characters from the previous screen.
+  while (col < 16) {
+    lcd.print(' ');
+    col++;
+  }
+}
+
+// ---------- FORMAT TEMPERATURE ----------
+void formatCompactTemp(float temp, char* output) {
+  if (isnan(temp) || isinf(temp)) {
+    strcpy(output, "  ERR");
+  } else if (temp < -99.9 || temp > 999.9) {
+    strcpy(output, "  OOR");
+  } else {
+    dtostrf(temp, 5, 1, output);
+  }
+}
+
+// ---------- UPDATE LCD ----------
+void updateDisplay() {
+  char value[24];
+  char line[40];
+
+  if (displayPage == 0) {
+    // ---------- SPEED AND DISTANCE ----------
+    dtostrf(speed_kmph, 1, 1, value);
+    snprintf(line, sizeof(line), "SPD:%s km/h", value);
+    printRow(0, line);
+
+    dtostrf(totalDistance_m / 1000.0, 1, 2, value);
+    snprintf(line, sizeof(line), "DST:%s km", value);
+    printRow(1, line);
+
+  } else {
+    // ---------- ALL FOUR TEMPERATURES ----------
+    // All readings are in degrees Celsius.
+    char t1[8], t2[8], t3[8], t4[8];
+
+    formatCompactTemp(temperatures[0], t1);
+    formatCompactTemp(temperatures[1], t2);
+    formatCompactTemp(temperatures[2], t3);
+    formatCompactTemp(temperatures[3], t4);
+
+    snprintf(line, sizeof(line), "T1:%sT2:%s", t1, t2);
+    printRow(0, line);
+
+    snprintf(line, sizeof(line), "T3:%sT4:%s", t3, t4);
+    printRow(1, line);
+  }
+}
+
+// ---------- SERIAL DEBUG ----------
+void printDebug() {
+  Serial.print("Speed: ");
+  Serial.print(speed_kmph, 1);
+
+  Serial.print(" km/h | Distance: ");
+  Serial.print(totalDistance_m / 1000.0, 3);
+  Serial.print(" km");
+
+  for (uint8_t i = 0; i < 4; i++) {
+    Serial.print(" | T");
+    Serial.print(i + 1);
+    Serial.print(": ");
+
+    if (isnan(temperatures[i]) || isinf(temperatures[i])) {
+      Serial.print("ERR");
+    } else {
+      Serial.print(temperatures[i], 1);
+      Serial.print(" C");
+    }
+  }
+
+  Serial.println();
+}
+
+// ---------- SETUP ----------
+void setup() {
+  Serial.begin(9600);
+
+  pinMode(IR_SENSOR_PIN, INPUT_PULLUP);
+
+  lcd.init();
+  lcd.backlight();
+  lcd.clear();
+
+  updateTemperatures();
+
+  // Start with speed and distance.
+  displayPage = 0;
+  updateDisplay();
+
+  unsigned long now = millis();
+
+  lastSpeedTime = now;
+  lastTempTime = now;
+  lastDisplayTime = now;
+  lastPageTime = now;
+
+  attachInterrupt(
+      digitalPinToInterrupt(IR_SENSOR_PIN),
+      pulseISR,
+      FALLING
+  );
+}
+
+// ---------- MAIN LOOP ----------
+void loop() {
+  unsigned long now = millis();
+
+  // ---------- SPEED AND DISTANCE ----------
+  if (now - lastSpeedTime >= SPEED_INTERVAL_MS) {
+    noInterrupts();
+    unsigned long sampleTime = millis();
+    unsigned long pulses = pulseCount;
+    pulseCount = 0;
+    interrupts();
+
+    float dt = (sampleTime - lastSpeedTime) / 1000.0;
+    lastSpeedTime = sampleTime;
+
+    float revolutions = pulses / (float)PULSES_PER_REV;
+    float rpmRaw = (revolutions / dt) * 60.0;
+
+    float alpha =
+        (rpmRaw > rpmFiltered) ? FAST_ALPHA : SLOW_ALPHA;
+
+    rpmFiltered += alpha * (rpmRaw - rpmFiltered);
+
+    // Clear the small residual filtered speed after stopping.
+    if (pulses == 0 && rpmFiltered < 0.5) {
+      rpmFiltered = 0.0;
+    }
+
+    speed_kmph =
+        (rpmFiltered / 60.0) * WHEEL_CIRCUMFERENCE_M * 3.6;
+
+    // Distance uses actual pulses.
+    totalDistance_m += revolutions * WHEEL_CIRCUMFERENCE_M;
+  }
+
+  now = millis();
+
+  // ---------- TEMPERATURE UPDATE ----------
+  if (now - lastTempTime >= TEMP_INTERVAL_MS) {
+    lastTempTime = now;
+    updateTemperatures();
+    printDebug();
+  }
+
+  now = millis();
+
+  // ---------- SCREEN SWITCHING ----------
+  unsigned long pageDuration =
+      (displayPage == 0) ? SPEED_PAGE_MS : TEMP_PAGE_MS;
+
+  if (now - lastPageTime >= pageDuration) {
+    lastPageTime = now;
+    displayPage = (displayPage == 0) ? 1 : 0;
+
+    updateDisplay();
+    lastDisplayTime = now;
+  }
+
+  // ---------- REFRESH CURRENT SCREEN ----------
+  if (now - lastDisplayTime >= DISPLAY_INTERVAL_MS) {
+    lastDisplayTime = now;
+    updateDisplay();
+  }
+}
